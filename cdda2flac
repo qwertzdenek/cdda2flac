@@ -2,16 +2,11 @@
 # cdda2flac - Zdeněk Janeček. Inspired by J. Schilling
 #
 # Script for processing all audio tracks with a flac encoder.
-#
-# list_audio_tracks is a (symbolic) link to cdda2wav
-# and used to generate a list of audio track numbers and start
-# sectors, which in turn are used in a loop to spawn cdda2wav
-# and the post processor on a track by track basis.
 
 # specify the sampling program and its options
 # do not specify the track option here!
 CDDA2WAV=cdda2wav
-CDDA2WAV_OPTS='-H -q'
+CDDA2WAV_OPTS=''
 CDDA2WAV_XOPTS=''
 
 # for normal use, comment out the next line
@@ -72,26 +67,21 @@ while [ $# -gt 0 ]; do
 	esac
 done
 
-## FIX: sed does not work.
-TRACKS=`$CDDA2WAV $CDDA2WAV_DEV -H -J -vtoc -N -g 2>&1 | grep '^Track ..:' | sed -e 's/T\(..\):.*/\1/g'`
-if [ -z "$TRACKS" ]; then
-	$CDDA2WAV $CDDA2WAV_DEV -H -J -vtoc -N -g
-	exit 1
-fi
+$CDDA2WAV $CDDA2WAV_DEV -H -J -N &> info
+COUNT=`cat info | grep 'total tracks:' | cut -c 33-34`
+cat info | grep '^Track ..:' | cut -c 12- - | rev | cut -b 2- | rev > names
+rm info
 
-NUMBER=0
-
-for TRACK in $TRACKS; do
-    ((NUMBER++))
-    
+for NUMBER in `seq 1 $COUNT` ; do
+    NAME=`cat names | sed $NUMBER'!d'`
     if [ $found_fileprefix = TRUE ]; then
-        NAME=${NUMBER}_$TRACK-$FILEPREFIX.flac
+        NAME=${NUMBER}_$NAME-$FILEPREFIX.flac
     else
-        NAME=${NUMBER}_$TRACK.flac
+        NAME=${NUMBER}_$NAME.flac
     fi
 	
-	$CDDA2WAV $CDDA2WAV_DEV $CDDA2WAV_OPTS -t$TRACK $DEBUG $CDDA2WAV_XOPTS -Owav - | \
-	$MP_CODER $MP_OPTIONS $MP_XOPTS - > $NAME 
+	$CDDA2WAV $CDDA2WAV_DEV $CDDA2WAV_OPTS -t$NUMBER $DEBUG $CDDA2WAV_XOPTS -Owav - | \
+	$MP_CODER $MP_OPTIONS $MP_XOPTS - > $NAME
     
 	# check result code
 	RES=$?
